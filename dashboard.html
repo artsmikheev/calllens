@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CallLens / Эффективность менеджеров</title>
+  <link rel="stylesheet" href="dashboard.css" />
+</head>
+<body>
+  <div class="dash-shell">
+    <header class="dash-topbar">
+      <a class="brand" href="/"><span class="brand-mark">◒</span><span>CallLens</span></a>
+      <div class="dash-nav"><a class="active" href="/dashboard.html">Команда</a><a href="/">Разбор звонка</a><span class="dash-status"><i></i> локальный режим</span></div>
+    </header>
+    <main class="dash-main">
+      <section class="dash-hero">
+        <div><p class="eyebrow">TEAM INTELLIGENCE / 02</p><h1>Эффективность менеджеров<br><em>через призму клиента</em></h1><p class="lede">Смотрите не только итоговый балл, но и то, как команда адаптируется к разным стилям общения.</p></div>
+        <div class="hero-aside"><span class="live-dot"></span><strong id="sourceLabel">Демо-данные</strong><p>Загрузите JSON или CSV с отчётами CallLens, чтобы заменить примерный набор реальными результатами.</p><label class="import-button" for="dataImport">Импорт данных<input id="dataImport" type="file" accept=".json,.csv" hidden></label></div>
+      </section>
+
+      <section class="toolbar" aria-label="Фильтры дашборда">
+        <div class="filter-block"><label for="managerFilter">Менеджер</label><select id="managerFilter"><option value="all">Вся команда</option></select></div>
+        <div class="filter-block"><label for="styleFilter">Стиль клиента</label><select id="styleFilter"><option value="all">Все стили</option><option>Результатный стратег</option><option>Доказательный эксперт</option><option>Визионер-вдохновитель</option><option>Надёжный партнёр</option></select></div>
+        <div class="filter-block"><label for="periodFilter">Период</label><select id="periodFilter"><option value="all">Все звонки</option><option value="recent">Последние 6</option></select></div>
+        <button class="reset-button" id="resetFilters">Сбросить фильтры</button>
+      </section>
+
+      <section class="kpi-grid" aria-label="Ключевые показатели">
+        <article class="kpi-card"><span class="kpi-label">Средний evidence-based</span><strong id="kpiEvidence">—</strong><span class="kpi-foot" id="kpiEvidenceFoot">по выбранным звонкам</span></article>
+        <article class="kpi-card accent"><span class="kpi-label">Адаптация к клиенту</span><strong id="kpiAdaptation">—</strong><span class="kpi-foot">насколько менеджер меняет подачу</span></article>
+        <article class="kpi-card"><span class="kpi-label">Следующий шаг</span><strong id="kpiNext">—</strong><span class="kpi-foot">звонков с конкретной договорённостью</span></article>
+        <article class="kpi-card"><span class="kpi-label">Разобрано звонков</span><strong id="kpiCalls">—</strong><span class="kpi-foot">в текущем срезе</span></article>
+      </section>
+
+      <section class="insight-strip" id="insightStrip"></section>
+
+      <section class="dash-grid top-grid">
+        <article class="panel performance-panel"><div class="panel-head"><div><p class="panel-kicker">01 / COMPARISON</p><h2>Менеджеры: результат и адаптация</h2></div><span class="legend-note">сортировка по evidence-based</span></div><div id="managerBars" class="manager-bars"></div></article>
+        <article class="panel style-panel"><div class="panel-head"><div><p class="panel-kicker">02 / MIX</p><h2>С какими клиентами говорим</h2></div></div><div id="styleMix" class="style-mix"></div><p class="chart-caption">Распределение стилей в выбранном срезе. Цвет не единственный носитель значения — рядом указаны доли и количество.</p></article>
+      </section>
+
+      <section class="dash-grid middle-grid">
+        <article class="panel matrix-panel"><div class="panel-head"><div><p class="panel-kicker">03 / FIT</p><h2>Адаптация по стилям клиента</h2></div><span class="legend-note">средний %</span></div><div id="styleMatrix" class="style-matrix"></div><p class="chart-caption">Это не рейтинг личности клиента. Это проверка, где менеджеру легче или сложнее менять подачу.</p></article>
+        <article class="panel gaps-panel"><div class="panel-head"><div><p class="panel-kicker">04 / COACHING</p><h2>Повторяющиеся провалы</h2></div></div><div id="gapList" class="gap-list"></div></article>
+      </section>
+
+      <section class="panel calls-panel"><div class="panel-head"><div><p class="panel-kicker">05 / CALL LOG</p><h2>Последние звонки</h2></div><span id="callCount" class="legend-note"></span></div><div class="table-wrap"><table><thead><tr><th>Дата</th><th>Менеджер</th><th>Стиль клиента</th><th>Evidence-based</th><th>Адаптация</th><th>Следующий шаг</th><th>Главный фокус</th></tr></thead><tbody id="callsTable"></tbody></table></div></section>
+      <p class="data-note">Демо-данные предназначены для демонстрации структуры дашборда и не являются оценкой реальных менеджеров. Для рабочего режима используйте импорт JSON/CSV из отчётов CallLens.</p>
+    </main>
+    <footer class="dash-footer"><span>CallLens / sales-call-quality-analyst</span><span>Evidence over assumptions</span></footer>
+  </div>
+  <script src="dashboard.js"></script>
+</body>
+</html>

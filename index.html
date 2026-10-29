@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CallLens — разбор звонков</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .form-status{min-height:20px;margin:12px 0 0;font-size:12px;color:var(--muted)}
+    .form-status.error{color:#a64942}.form-status.success{color:var(--green)}
+    .form-status.info{color:var(--blue)}.dropzone.invalid{border-color:var(--red);background:#fff8f7}
+    .primary-button:disabled{opacity:.55;cursor:wait;transform:none}
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="CallLens">
+        <span class="brand-mark" aria-hidden="true">◒</span>
+        <span>CallLens</span>
+      </a>
+      <div class="topbar-meta"><a href="/dashboard.html" style="color:var(--green);font-weight:800;text-decoration:none;margin-right:18px">Дашборд команды →</a><span class="status-dot"></span><span id="aiStatus">Проверяем режим…</span></div>
+    </header>
+
+    <main id="top">
+      <section class="hero section-wrap">
+        <div class="hero-copy">
+          <p class="eyebrow">SALES INTELLIGENCE / 01</p>
+          <h1>Разберите звонок.<br><em>Улучшите следующий.</em></h1>
+          <p class="hero-lede">Загрузите запись и чек-лист — получите оценку менеджера, список упущенных моментов и рабочий профиль клиента.</p>
+        </div>
+        <div class="hero-note" aria-label="Описание метода">
+          <span class="note-index">01</span>
+          <p>Аудио остаётся в выбранном вами API. Результат строится на цитатах и тайм-кодах, а не на догадках.</p>
+        </div>
+      </section>
+
+      <section class="section-wrap workspace-grid" aria-label="Загрузка и запуск анализа">
+        <form id="analysisForm" class="input-card card">
+          <div class="card-heading"><span class="step-num">01</span><div><h2>Соберите входные данные</h2><p>Файл звонка + чек-лист</p></div></div>
+
+          <label class="dropzone" id="dropzone" for="audioFile" tabindex="0">
+            <input id="audioFile" type="file" accept="audio/mpeg,audio/wav,audio/x-m4a,audio/ogg,video/mp4,.mp3,.wav,.m4a,.ogg,.mp4" hidden />
+            <span class="drop-icon" aria-hidden="true">↑</span>
+            <strong>Перетащите аудиофайл сюда</strong>
+            <span>или выберите на устройстве · MP3, WAV, M4A, OGG, MP4</span>
+            <span id="audioMeta" class="file-meta">Файл не выбран</span>
+          </label>
+
+          <div class="field-group">
+            <div class="field-label-row"><label for="checklistFile">Чек-лист</label><button type="button" class="text-button" id="loadDemoChecklist">Загрузить пример</button></div>
+            <input id="checklistFile" type="file" accept=".md,.txt,.csv" />
+            <p class="field-hint">Или добавьте критерии вручную ниже. Формат файла: <code>Название,Макс. балл</code>.</p>
+          </div>
+
+          <div class="manual-list" id="manualList" aria-live="polite"></div>
+          <button type="button" class="secondary-button" id="addCriterion">+ Добавить пункт</button>
+
+          <div class="form-divider"></div>
+          <div class="optional-fields">
+            <div class="field-group"><label for="managerName">Менеджер <span>(необязательно)</span></label><input id="managerName" type="text" placeholder="Имя менеджера" /></div>
+            <div class="field-group"><label for="clientName">Клиент <span>(необязательно)</span></label><input id="clientName" type="text" placeholder="Имя или компания" /></div>
+            <div class="field-group full"><label for="callGoal">Цель звонка <span>(необязательно)</span></label><input id="callGoal" type="text" placeholder="Например: квалификация и назначение демо" /></div>
+          </div>
+          <div class="privacy-line"><span aria-hidden="true">⌁</span> MVP без CRM: запись анализируется после явного запуска, а результат остаётся в этом сеансе.</div>
+          <p id="formStatus" class="form-status" role="status" aria-live="polite"></p>
+          <button class="primary-button" id="analyzeButton" type="submit">Запустить анализ <span>→</span></button>
+        </form>
+
+        <aside class="process-card card">
+          <div class="card-heading"><span class="step-num">02</span><div><h2>Что вы получите</h2><p>Три слоя одного разбора</p></div></div>
+          <ol class="feature-list">
+            <li><span>01</span><div><strong>Оценка по чек-листу</strong><p>Баллы, статусы, цитаты и объяснения с тайм-кодами.</p></div></li>
+            <li><span>02</span><div><strong>Что не было сказано</strong><p>Пропущенные и частично выполненные шаги с готовыми фразами.</p></div></li>
+            <li><span>03</span><div><strong>Профиль клиента</strong><p>Стиль коммуникации, доказательства, контрдоводы и playbook.</p></div></li>
+          </ol>
+          <div class="method-note"><span class="mini-label">MVP / БЕЗ CRM</span><p>Сначала загружаете запись и чек-лист, затем получаете транскрипт, оценку, доказательства и coaching-отчёт. CRM-публикация в эту версию не входит.</p></div>
+        </aside>
+      </section>
+
+      <section id="progressSection" class="section-wrap progress-section hidden" aria-live="polite">
+        <div class="progress-header"><div><p class="eyebrow">ANALYSIS / LIVE</p><h2>Разбираем звонок</h2></div><span id="progressPercent">0%</span></div>
+        <div class="progress-track"><div id="progressBar"></div></div>
+        <div class="progress-steps" id="progressSteps"><span class="active">Загрузка</span><span>Транскрибация</span><span>Чек-лист</span><span>Психотип</span><span>Готово</span></div>
+        <p id="progressHint" class="progress-hint">Подготавливаем файл…</p>
+      </section>
+
+      <section id="resultsSection" class="section-wrap results-section hidden" aria-live="polite">
+        <div class="results-topline"><div><p class="eyebrow">REPORT / COMPLETE</p><h2>Разбор готов</h2><p id="reportMeta" class="muted"></p></div><div class="export-actions"><button id="copyReport" class="secondary-button">Скопировать</button><button id="downloadReport" class="secondary-button">Скачать .md</button><button id="printReport" class="primary-button compact">Скачать PDF <span>↗</span></button></div></div>
+        <div id="roleWarning" class="warning-banner hidden" role="status">Роли не удалось надёжно определить. В отчёте используются Speaker 1 / Speaker 2, поэтому менеджерские баллы могут быть неточными.</div>
+        <div class="results-grid">
+          <article class="result-card card score-card" id="scoreCard"></article>
+          <article class="result-card card profile-card" id="profileCard"></article>
+        </div>
+        <article class="result-card card omissions-card" id="omissionsCard"></article>
+        <article class="result-card card coaching-card" id="coachingCard"></article>
+        <article class="result-card card transcript-card" id="transcriptCard"></article>
+      </section>
+    </main>
+    <footer class="footer section-wrap"><span>CallLens / sales-call-quality-analyst</span><span>Evidence over assumptions</span></footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

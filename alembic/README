@@ -1,0 +1,3 @@
+CallLens Module 1 Alembic migrations.
+
+Use `alembic upgrade head` with DATABASE_URL configured in .env.
