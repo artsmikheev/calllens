@@ -26,6 +26,15 @@ STYLE_LABELS = {
  'trust_oriented_partner':'Надёжный партнёр'
 }
 
+STYLE_TO_DISC = {
+ 'Результатный стратег':'D',
+ 'Визионер-вдохновитель':'I',
+ 'Надёжный партнёр':'S',
+ 'Доказательный эксперт':'C'
+}
+DISC_TO_STYLE = {v:k for k,v in STYLE_TO_DISC.items()}
+BIG_FIVE_KEYS = ('openness','conscientiousness','extraversion','agreeableness','neuroticism')
+
 def client():
     key = os.getenv('OPENAI_API_KEY')
     if not key: raise HTTPException(500, 'Не найден OPENAI_API_KEY. Создайте .env или экспортируйте переменную окружения.')
@@ -75,8 +84,8 @@ def ask_llm(transcript, checklist, meta):
     rows=score_data.get('criteria',[])
     if len(rows)!=len(checklist):
         raise HTTPException(502,f'AI вернул {len(rows)} критериев вместо {len(checklist)}; отчёт не собран.')
-    insight_system='''Ты — coach отдела продаж. Верни только JSON без placeholders. Определи наблюдаемый стиль клиента только по его репликам, дай confidence, минимум реальные цитаты-доказательства при наличии, возражения с LAER и максимум три конкретных coaching-приоритета. Не делай клинических выводов и не выдумывай цитаты.'''
-    insight_user=f"""Метаданные: {json.dumps(meta,ensure_ascii=False)}\n\nТранскрипт с тайм-кодами:\n{transcript}\n\nВерни JSON с полями client_communication_profile, objections, one_call_coaching, follow_up, team_insights, role_warning."""
+    insight_system='''Ты — coach отдела продаж. Верни только JSON без placeholders. Определи наблюдаемый стиль клиента только по его репликам, дай confidence, минимум реальные цитаты-доказательства при наличии, возражения с LAER и максимум три конкретных coaching-приоритета. Не делай клинических выводов и не выдумывай цитаты. Дополнительно верни personality_profile: communication_style (те же четыре стиля), disc_profile {d,i,s,c — выраженность 0-100, primary D/I/S/C или none, confidence 0-1}, big_five_scores {openness, conscientiousness, extraversion, agreeableness, neuroticism — 0-100} и evidence {disc:[{timestamp,quote,signal}], big_five:[{timestamp,quote,signal}]}. DISC выводись по речевым паттернам клиента: D — Результатный стратег (сроки, результат, контроль, короткие директивные реплики), I — Визионер-вдохновитель (эмоции, статус, образы будущего, истории), S — Надёжный партнёр (безопасность, команда, гарантии, ровный темп), C — Доказательный эксперт (цифры, документы, методики, сравнения). Big Five оценивай по наблюдаемым сигналам: инициативность и энергия реплик (extraversion), структура/критерии/сроки (conscientiousness), интерес к новому и экспериментам (openness), согласие vs спор (agreeableness), выраженные опасения и риски (neuroticism). Каждый вывод — только с точной цитатой клиента и тайм-кодом; без наблюдаемого сигнала шкалу не выдумывай: верни 50 и отметь low_evidence=true. Это наблюдаемый коммуникационный паттерн в звонке, а не диагноз личности.'''
+    insight_user=f"""Метаданные: {json.dumps(meta,ensure_ascii=False)}\n\nТранскрипт с тайм-кодами:\n{transcript}\n\nВерни JSON с полями client_communication_profile, personality_profile, objections, one_call_coaching, follow_up, team_insights, role_warning."""
     insight_data=call_json(api,insight_system,insight_user,7000)
     data=insight_data
     data['score']={'criteria':rows}
@@ -89,7 +98,44 @@ def ask_llm(transcript, checklist, meta):
         if row.get('verdict')!='не наблюдалось': observable+=row['max_points']; observable_earned+=row['earned_points']
     data['score'].update({'earned_points':earned,'max_points':maximum,'observable_max_points':observable,'evidence_percent':round(observable_earned/observable*100,1) if observable else 0,'strict_percent':round(earned/maximum*100,1) if maximum else 0})
     return normalize(data, transcript, checklist, meta)
-    return normalize(data, transcript, checklist, meta)
+
+def safe_float(value, default=0.0):
+    try: return float(value)
+    except (TypeError, ValueError): return default
+
+def clamp_percent(value, default):
+    return max(0, min(100, round(safe_float(value, default))))
+
+def normalize_personality_profile(data):
+    """Backward-compatible personality_profile: DISC + Big Five + evidence, defaults when provider omits fields."""
+    p=data.get('client_communication_profile',{}) or {}
+    pp=data.setdefault('personality_profile',{})
+    cs=pp.setdefault('communication_style',{})
+    cs.setdefault('primary_type', p.get('primary_type','Профиль не определён'))
+    cs.setdefault('secondary_type', p.get('secondary_type',''))
+    cs.setdefault('confidence', safe_float(p.get('confidence',0)))
+    cs.setdefault('confidence_percent', p.get('confidence_percent', round(safe_float(p.get('confidence',0))*100)))
+    cs.setdefault('confidence_label', p.get('confidence_label', 'low'))
+    disc=pp.get('disc_profile') if isinstance(pp.get('disc_profile'),dict) else {}
+    for key in ('d','i','s','c'): disc[key]=clamp_percent(disc.get(key),0)
+    primary=str(disc.get('primary') or '').strip().upper()
+    if primary not in DISC_TO_STYLE: primary=STYLE_TO_DISC.get(cs.get('primary_type',''),'NONE')
+    disc['primary']=primary
+    disc['confidence']=round(max(0.0,min(1.0,safe_float(disc.get('confidence',0)))),2)
+    pp['disc_profile']=disc
+    bf=pp.get('big_five_scores') if isinstance(pp.get('big_five_scores'),dict) else {}
+    low_evidence=bool(bf.get('low_evidence'))
+    for key in BIG_FIVE_KEYS:
+        if bf.get(key) is None: bf[key]=50; low_evidence=True
+        else: bf[key]=clamp_percent(bf.get(key),50)
+    bf['low_evidence']=low_evidence
+    pp['big_five_scores']=bf
+    ev=pp.get('evidence') if isinstance(pp.get('evidence'),dict) else {}
+    for key in ('disc','big_five'):
+        ev[key]=[item if isinstance(item,dict) else {'timestamp':'','quote':str(item),'signal':''} for item in (ev.get(key) or [])]
+    pp['evidence']=ev
+    pp['provisional']=bool(data.get('role_warning'))
+    return pp
 
 def normalize(data, transcript, checklist, meta):
     data['transcript']=transcript; data.setdefault('meta',meta)
@@ -103,6 +149,7 @@ def normalize(data, transcript, checklist, meta):
     p['secondary_type_label'] = STYLE_LABELS.get(p.get('secondary_type_label',''), p.get('secondary_type_label', p['secondary_type'])) if p.get('secondary_type') else ''
     for key in ('evidence','counter_evidence'):
         p[key]=[item if isinstance(item,dict) else {'timestamp':'','quote':str(item),'signal':''} for item in (p.get(key) or [])]
+    normalize_personality_profile(data)
     score=data.setdefault('score',{}); rows=score.setdefault('criteria',[])
     for row in rows:
         row.setdefault('verdict_key', {'выполнено':'pass','частично':'partial','провал':'fail','не наблюдалось':'na'}.get(row.get('verdict'),'na'))
@@ -136,6 +183,13 @@ def make_markdown(d):
     for x in p.get('evidence',[]): lines.append(f"- [{x.get('timestamp','')}] “{x.get('quote','')}” — {x.get('signal','')}")
     lines += ['', '### Контрдоводы']
     for x in p.get('counter_evidence',[]): lines.append(f"- [{x.get('timestamp','')}] “{x.get('quote','')}” — {x.get('signal','')}")
+    pp=d.get('personality_profile',{}); disc=pp.get('disc_profile',{}); bf=pp.get('big_five_scores',{})
+    lines += ['', '### Психотип: DISC и Big Five',
+              f"- DISC (0–100): D {disc.get('d',0)} · I {disc.get('i',0)} · S {disc.get('s',0)} · C {disc.get('c',0)} — доминирующий: {disc.get('primary','none')} (уверенность {round(safe_float(disc.get('confidence',0))*100)}%)",
+              f"- Big Five (0–100): O {bf.get('openness',50)} · C {bf.get('conscientiousness',50)} · E {bf.get('extraversion',50)} · A {bf.get('agreeableness',50)} · N {bf.get('neuroticism',50)}" + (' — недостаточно наблюдаемых сигналов (low_evidence)' if bf.get('low_evidence') else '')]
+    for x in pp.get('evidence',{}).get('disc',[]): lines.append(f"- DISC-доказательство [{x.get('timestamp','')}] “{x.get('quote','')}” — {x.get('signal','')}")
+    for x in pp.get('evidence',{}).get('big_five',[]): lines.append(f"- Big Five-доказательство [{x.get('timestamp','')}] “{x.get('quote','')}” — {x.get('signal','')}")
+    if pp.get('provisional'): lines.append('- Профиль provisional: роли в транскрипте определены ненадёжно (role_warning).')
     pb=p.get('manager_playbook',{}); lines += ['', '### Playbook', f"- Начать: {pb.get('opening','')}", f"- Аргументы: {'; '.join(pb.get('arguments',[]))}", f"- Возражения: {pb.get('objection_handling','')}", f"- Избегать: {'; '.join(pb.get('avoid',[]))}", '', '### Адаптация менеджера', p.get('manager_adaptation',{}).get('summary','')]
     lines += ['', '## 4. Возражения и качество обработки']
     for o in d.get('objections',[]):
@@ -179,6 +233,11 @@ def demo_result(checklist, meta):
                    'counter_evidence':[],'manager_playbook':{'opening':'Уточнить цель и критерии успеха.','arguments':['Показать доказательство.'],
                    'objection_handling':'Признать вопрос и проверить следующий шаг.','avoid':['Не делать выводов без цитаты.']},
                    'manager_adaptation':{'summary':'Demo-режим: адаптация не оценивается.'}},
+          'personality_profile':{'communication_style':{'primary_type':'Доказательный эксперт','secondary_type':'Надёжный партнёр','confidence':0.5,'confidence_percent':50,'confidence_label':'low'},
+                   'disc_profile':{'d':30,'i':20,'s':55,'c':70,'primary':'C','confidence':0.5},
+                   'big_five_scores':{'openness':45,'conscientiousness':70,'extraversion':40,'agreeableness':60,'neuroticism':35,'low_evidence':True},
+                   'evidence':{'disc':[{'timestamp':'00:00–00:08','quote':'Демонстрационная реплика','signal':'C: запрос доказательств и деталей'}],
+                               'big_five':[{'timestamp':'00:00–00:08','quote':'Демонстрационная реплика','signal':'conscientiousness'}]}},
           'omissions':{'not_observed':[{'name':'Демо-проверка','stage':'MVP','impact':'Не влияет на реальный звонок.','example_phrase':'Замените demo-режим реальным анализом.'}],'partial':[]},
           'objections':[{'category':'demo','handling_status':'not_observable','confidence':0,'timestamp':'00:00–00:08','quote':'','reason':'Demo-режим не оценивает реальные возражения.','laer':{}}],
           'one_call_coaching':[{'priority':1,'behavior':'Проверить полный путь загрузки и отображения отчёта','observed_moment':'Demo fixture','impact':'Подтверждает связность MVP.','replacement_phrase':'Перейти к реальному звонку после настройки API ключа.','cue':'После smoke-теста','success_signal':'Отчёт отображается без ошибок.'}],

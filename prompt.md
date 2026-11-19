@@ -14,6 +14,12 @@
    - `Визионер-вдохновитель` — возможности, будущее, идеи, истории, эмоциональная энергия; DISC I / Expressive.
    - `Надёжный партнёр` — команда, поддержка, консенсус, безопасность изменений; DISC S / Amiable.
 6. Можно вернуть смешанный профиль из двух категорий. Обязательно дай минимум три реальные цитаты клиента и контрдоводы. Если данных недостаточно, confidence должен быть ниже 0.55 и профиль должен быть описан как гипотеза.
+6a. Дополнительно верни `personality_profile` — наблюдаемый психотип клиента в этом звонке (не диагноз личности):
+    - `communication_style` — те же четыре стиля, что и в `client_communication_profile` (primary_type, secondary_type, confidence, confidence_percent, confidence_label).
+    - `disc_profile` — выраженность факторов `d`, `i`, `s`, `c` по шкале 0–100, доминирующий `primary` (D/I/S/C/none) и `confidence` 0–1. Маркеры: D — короткие директивные реплики, сроки, результат, контроль (Результатный стратег); I — эмоции, статус, образы будущего, истории (Визионер-вдохновитель); S — безопасность, команда, гарантии, ровный темп (Надёжный партнёр); C — цифры, документы, методики, сравнения (Доказательный эксперт).
+    - `big_five_scores` — `openness`, `conscientiousness`, `extraversion`, `agreeableness`, `neuroticism` по шкале 0–100 как выраженность признака в этом разговоре. Маркеры: инициативность и энергия реплик (E), структура/критерии/сроки (C), интерес к новому (O), согласие vs спор (A), выраженные опасения и риски (N). Если наблюдаемого сигнала нет — верни 50 и `low_evidence: true`; не выдумывай.
+    - `evidence` — `{disc: [...], big_five: [...]}`: каждое заключение подтверждается точной цитатой клиента с тайм-кодом и именем сигнала. Контраргументы между DISC и Big Five отражай в `counter_evidence` профиля и снижай confidence.
+    - При `role_warning=true` психотип считается provisional.
 7. Верни практический manager playbook: как начать следующий разговор, какие аргументы использовать, как обрабатывать возражения и чего избегать.
 8. Отдельно оцени адаптацию менеджера к стилю клиента: score_percent, наблюдаемые совпадения/расхождения, summary.
 9. Выдели возражения клиента по категориям: цена, сроки, потребность/соответствие, доверие/риск, полномочия/процесс, конкурент и реализация. Для каждого укажи цитату, тайм-код, стадию, severity, confidence и статус: `resolved`, `partially_resolved`, `deferred`, `unresolved` или `not_observable`.
@@ -53,6 +59,13 @@
     "counter_evidence":[{"timestamp":"","quote":"","signal":""}],
     "manager_playbook":{"opening":"","arguments":[],"objection_handling":"","avoid":[]},
     "manager_adaptation":{"score_percent":0,"summary":"","evidence":[]}
+  },
+  "personality_profile": {
+    "communication_style":{"primary_type":"Результатный стратег","secondary_type":"","confidence":0.0,"confidence_percent":0,"confidence_label":"low"},
+    "disc_profile":{"d":0,"i":0,"s":0,"c":0,"primary":"D|I|S|C|none","confidence":0.0},
+    "big_five_scores":{"openness":50,"conscientiousness":50,"extraversion":50,"agreeableness":50,"neuroticism":50,"low_evidence":true},
+    "evidence":{"disc":[{"timestamp":"","quote":"","signal":""}],"big_five":[{"timestamp":"","quote":"","signal":""}]},
+    "provisional":false
   },
   "objections":[{"category":"price","timestamp":"","quote":"","stage":"","severity":"low|medium|high","confidence":0.0,"handling_status":"resolved|partially_resolved|deferred|unresolved|not_observable","laer":{"listen":false,"acknowledge":false,"explore":false,"respond":false,"confirm":false},"reason":""}],
   "one_call_coaching":[{"priority":1,"behavior":"","observed_moment":"","impact":"","replacement_phrase":"","cue":"","success_signal":""}],
