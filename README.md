@@ -5,8 +5,9 @@ CallLens MVP — русскоязычный интерфейс и небольш
 1. оценку по каждому критерию и два итоговых балла — evidence-based и strict;
 2. список пунктов, которые не прозвучали или были выполнены частично;
 3. профиль коммуникационного стиля клиента, доказательные цитаты, контрдоводы и playbook менеджера;
-4. карту возражений по категориям и проверку обработки по LAER;
-5. 1–3 coaching-приоритета на следующий сопоставимый звонок и follow-up условие проверки.
+4. психотип клиента: DISC-профиль (D/I/S/C, 0–100 + доминирующий фактор) и гипотезу Big Five (O/C/E/A/N, 0–100) с evidence-цитатами и тайм-кодами;
+5. карту возражений по категориям и проверку обработки по LAER;
+6. 1–3 coaching-приоритета на следующий сопоставимый звонок и follow-up условие проверки.
 
 В интерфейсе используются только русские названия стилей. CallLens определяет четыре практических коммуникативных профиля, основываясь на репликах клиента в транскрипте:
 
@@ -96,6 +97,8 @@ export OPENAI_ANALYSIS_MODEL=gpt-4o-mini
 
 Также пункты можно добавить вручную. Они сохраняются в `localStorage` текущего браузера.
 
+Кнопка **«+ Психотип клиента»** добавляет в чек-лист опциональный блок из трёх критериев: определение стиля принятия решений клиента (DISC), подтверждение выводов цитатами и адаптация аргументации под психотип. Повторное нажатие не дублирует пункты.
+
 ## Запуск без API-запроса
 
 Для локального просмотра интерфейса можно запустить простой сервер:
@@ -151,12 +154,47 @@ python3 -m http.server 8080
 - `backend.py` — FastAPI, chunking, Whisper и JSON-анализ.
 - `prompt.md` — отдельный системный промт.
 - `requirements.txt` — зависимости.
+- `AGENTS.md` и `.qoder/` — инструкции, модульные правила и skills для AI-агентов (психотипирование DISC/Big Five, LAER, MCP).
 
 ## Интегрированный coaching-слой
 
 Для развития сервиса создан новый Manus Skill `sales-call-quality-coach` в `/home/ubuntu/skills/sales-call-quality-coach/SKILL.md`. Он объединяет текущую оценку по чек-листу с навыками `call-review-coach`, `call-insights-to-objections`, `manager-coaching-cadence`, `persona-classification`, `adaptability`, `objection-recognition`, `objection-handling` и `win-loss-reason-extraction`.
 
 В интерфейсе добавлена новая карта результата «Возражения и следующий звонок». Она отображает категорию возражения, статус обработки, подтверждённые шаги LAER, coaching-приоритеты, фразу для тренировки, триггер и сигнал успеха. Новые поля API: `objections`, `one_call_coaching`, `follow_up`, `team_insights`.
+
+## Поле API `personality_profile`
+
+Ответ `/api/analyze` дополнительно включает обратно совместимое поле `personality_profile` (старые поля не изменяются):
+
+```json
+{
+  "personality_profile": {
+    "communication_style": {"primary_type": "Доказательный эксперт", "secondary_type": "", "confidence": 0.7, "confidence_percent": 70, "confidence_label": "medium"},
+    "disc_profile": {"d": 30, "i": 20, "s": 55, "c": 70, "primary": "C", "confidence": 0.7},
+    "big_five_scores": {"openness": 45, "conscientiousness": 70, "extraversion": 40, "agreeableness": 60, "neuroticism": 35, "low_evidence": false},
+    "evidence": {"disc": [{"timestamp": "01:12–01:20", "quote": "…", "signal": "C: запрос сравнений"}], "big_five": [{"timestamp": "…", "quote": "…", "signal": "conscientiousness"}]},
+    "provisional": false
+  }
+}
+```
+
+- `communication_style` — текущие четыре стиля CallLens (дублируют `client_communication_profile` для удобства потребителей).
+- `disc_profile` — выраженность D/I/S/C (0–100), доминирующий фактор и уверенность; маппинг D→«Результатный стратег», I→«Визионер-вдохновитель», S→«Надёжный партнёр», C→«Доказательный эксперт».
+- `big_five_scores` — гипотеза O/C/E/A/N (0–100) по речевым паттернам этого звонка; шкала без наблюдаемого сигнала возвращается как 50 с `low_evidence: true`.
+- `evidence` — цитаты клиента с тайм-кодами для каждого вывода (принцип evidence-based).
+- `provisional` — true при `role_warning` (роли в транскрипте определены ненадёжно).
+
+Правила вывода описаны в `prompt.md` (правило 6a) и в модульных правилах `.qoder/rules/psychotype-disc.md`, `.qoder/rules/psychotype-big-five.md`. Психотип — рабочая гипотеза наблюдаемого коммуникационного паттерна, а не психодиагноз.
+
+## Тесты
+
+```bash
+pip install -r requirements.txt
+pytest tests/ -q    # unit-тесты: auth + personality_profile; не требуют OpenAI/SMTP
+```
+
+Корневые `*_smoke.py`/`smoke_test.py` — браузерные smoke-сценарии на Playwright, запускаются отдельно и в unit-прогон не входят.
+
 
 Дополнительные GitHub-навыки для разработки установлены в `/home/ubuntu/skills/_github-addons/`: `frontend-design`, `web-artifacts-builder`, `react-best-practices`, `web-design-guidelines`, `systematic-debugging`, `test-driven-development` и `verification-before-completion`. Они используются как development guidance и не подменяют runtime-логику CallLens.
 
