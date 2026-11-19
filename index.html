@@ -48,9 +48,9 @@
           </label>
 
           <div class="field-group">
-            <div class="field-label-row"><label for="checklistFile">Чек-лист</label><button type="button" class="text-button" id="loadDemoChecklist">Загрузить пример</button></div>
+            <div class="field-label-row"><label for="checklistFile">Чек-лист</label><span><button type="button" class="text-button" id="addPsychotypeBlock">+ Психотип клиента</button><button type="button" class="text-button" id="loadDemoChecklist">Загрузить пример</button></span></div>
             <input id="checklistFile" type="file" accept=".md,.txt,.csv" />
-            <p class="field-hint">Или добавьте критерии вручную ниже. Формат файла: <code>Название,Макс. балл</code>.</p>
+            <p class="field-hint">Или добавьте критерии вручную ниже. Формат файла: <code>Название,Макс. балл</code>. Кнопка «+ Психотип клиента» добавляет опциональный блок критериев оценки DISC-профиля клиента.</p>
           </div>
 
           <div class="manual-list" id="manualList" aria-live="polite"></div>
