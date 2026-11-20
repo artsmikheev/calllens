@@ -75,8 +75,8 @@ def ask_llm(transcript, checklist, meta):
     rows=score_data.get('criteria',[])
     if len(rows)!=len(checklist):
         raise HTTPException(502,f'AI вернул {len(rows)} критериев вместо {len(checklist)}; отчёт не собран.')
-    insight_system='''Ты — coach отдела продаж. Верни только JSON без placeholders. Определи наблюдаемый стиль клиента только по его репликам, дай confidence, минимум реальные цитаты-доказательства при наличии, возражения с LAER и максимум три конкретных coaching-приоритета. Не делай клинических выводов и не выдумывай цитаты.'''
-    insight_user=f"""Метаданные: {json.dumps(meta,ensure_ascii=False)}\n\nТранскрипт с тайм-кодами:\n{transcript}\n\nВерни JSON с полями client_communication_profile, objections, one_call_coaching, follow_up, team_insights, role_warning."""
+    insight_system='''Ты — coach отдела продаж. Верни только JSON без placeholders. Определи наблюдаемый стиль клиента только по его репликам, дай confidence, вероятностный профиль DISC по четырём шкалам D/I/S/C (0–100, сумма примерно 100), минимум реальные цитаты-доказательства при наличии, возражения с LAER и максимум три конкретных coaching-приоритета. Укажи basis: text_only, если акустические признаки не переданы. Не делай клинических выводов и не выдумывай цитаты.'''
+    insight_user=f"""Метаданные: {json.dumps(meta,ensure_ascii=False)}\n\nТранскрипт с тайм-кодами:\n{transcript}\n\nВерни JSON с полями client_communication_profile (включая disc_scores: {{D,I,S,C}}, basis и uncertainty_note), objections, one_call_coaching, follow_up, team_insights, role_warning."""
     insight_data=call_json(api,insight_system,insight_user,7000)
     data=insight_data
     data['score']={'criteria':rows}
@@ -97,6 +97,11 @@ def normalize(data, transcript, checklist, meta):
         data['role_warning_detail']=data.get('role_warning'); data['role_warning']=True
     else: data.setdefault('role_warning',True)
     p=data.setdefault('client_communication_profile',{}); p.setdefault('confidence_percent',round(float(p.get('confidence',0))*100)); p.setdefault('confidence_label','low' if p['confidence_percent']<55 else 'medium' if p['confidence_percent']<80 else 'high')
+    raw_scores=p.get('disc_scores') if isinstance(p.get('disc_scores'),dict) else {}
+    scores={key:max(0,min(100,float(raw_scores.get(key,0) or 0))) for key in ('D','I','S','C')}
+    p['disc_scores']=scores
+    p.setdefault('basis','text_only')
+    p.setdefault('uncertainty_note','Профиль описывает наблюдаемый стиль в этом разговоре, а не неизменную характеристику человека.')
     p['primary_type'] = STYLE_LABELS.get(p.get('primary_type',''), p.get('primary_type','Профиль не определён'))
     p['secondary_type'] = STYLE_LABELS.get(p.get('secondary_type',''), p.get('secondary_type','')) if p.get('secondary_type') else ''
     p['primary_type_label'] = STYLE_LABELS.get(p.get('primary_type_label',''), p.get('primary_type_label', p['primary_type']))
@@ -132,7 +137,7 @@ def make_markdown(d):
     for x in d.get('omissions',{}).get('not_observed',[]): lines.append(f"- **{x.get('name','')}** — {x.get('stage','')}. Влияние: {x.get('impact','')}. Фраза: “{x.get('example_phrase','')}”")
     lines += ['', '### Частично выполнено']
     for x in d.get('omissions',{}).get('partial',[]): lines.append(f"- **{x.get('name','')}** — {x.get('reason','')}. Следующий раз: “{x.get('example_phrase','')}”")
-    lines += ['', '## 3. Психотип клиента и рекомендации', f"**{p.get('primary_type_label',p.get('primary_type',''))}** · уверенность {p.get('confidence_percent',0)}%",'', '### Цитаты-доказательства']
+    lines += ['', '## 3. Психотип клиента и рекомендации', f"**{p.get('primary_type_label',p.get('primary_type',''))}** · уверенность {p.get('confidence_percent',0)}%",'', '### Вероятностный профиль DISC', f"- D / Результатный стратег: {p.get('disc_scores',{}).get('D',0)}%", f"- I / Визионер-вдохновитель: {p.get('disc_scores',{}).get('I',0)}%", f"- S / Надёжный партнёр: {p.get('disc_scores',{}).get('S',0)}%", f"- C / Доказательный эксперт: {p.get('disc_scores',{}).get('C',0)}%", f"- Основа: {p.get('basis','text_only')}. {p.get('uncertainty_note','')}", '', '### Цитаты-доказательства']
     for x in p.get('evidence',[]): lines.append(f"- [{x.get('timestamp','')}] “{x.get('quote','')}” — {x.get('signal','')}")
     lines += ['', '### Контрдоводы']
     for x in p.get('counter_evidence',[]): lines.append(f"- [{x.get('timestamp','')}] “{x.get('quote','')}” — {x.get('signal','')}")
@@ -174,7 +179,7 @@ def demo_result(checklist, meta):
                    'observable_max_points':observable,'observable_earned_points':observable_earned,
                    'evidence_percent':round(observable_earned/observable*100,1) if observable else 0,
                    'strict_percent':round(earned/maximum*100,1) if maximum else 0},
-          'client_communication_profile':{'primary_type':'Доказательный эксперт','secondary_type':'Надёжный партнёр',
+          'client_communication_profile':{'primary_type':'Доказательный эксперт','secondary_type':'Надёжный партнёр','disc_scores':{'D':15,'I':10,'S':25,'C':50},'basis':'text_only','uncertainty_note':'Demo-режим: это не профиль реального клиента.',
                    'confidence':0.5,'evidence':[{'timestamp':'00:00–00:08','quote':'Демонстрационная реплика','signal':'fixture'}],
                    'counter_evidence':[],'manager_playbook':{'opening':'Уточнить цель и критерии успеха.','arguments':['Показать доказательство.'],
                    'objection_handling':'Признать вопрос и проверить следующий шаг.','avoid':['Не делать выводов без цитаты.']},
